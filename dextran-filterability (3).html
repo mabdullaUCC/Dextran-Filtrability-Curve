@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Glomerular filterability of dextran: size and charge</title>
+<style>
+:root{--bg:#f7f6f2;--fg:#1f1f1c;--mute:#6b6a64;--card:#fff;--line:#d9d7cf;--cat:#e8365d;--neu:#3a5fbf;--ani:#1f1f1c;--sel:#1f9d6b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1b19;--fg:#ecebe5;--mute:#a09f97;--card:#262624;--line:#3b3b37;--cat:#ff6b8b;--neu:#7a9cff;--ani:#ecebe5;--sel:#3fd39a}}
+:root[data-theme="dark"]{--bg:#1b1b19;--fg:#ecebe5;--mute:#a09f97;--card:#262624;--line:#3b3b37;--cat:#ff6b8b;--neu:#7a9cff;--ani:#ecebe5;--sel:#3fd39a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45}
+main{max-width:760px;margin:0 auto;padding:20px 16px 32px}
+h1{font-size:1.3rem;margin:0 0 4px}
+p.sub{margin:0 0 14px;color:var(--mute);font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--fg);font-family:system-ui,sans-serif}
+.ctl{margin-top:12px;display:grid;gap:14px}
+label{display:flex;justify-content:space-between;font-size:.9rem;font-weight:600}
+input[type=range]{width:100%;accent-color:var(--sel)}
+.ends{display:flex;justify-content:space-between;font-size:.75rem;color:var(--mute)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+button{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:.8rem;cursor:pointer}
+button:hover{border-color:var(--sel)}
+.out{margin-top:14px;display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.out b{font-size:1.5rem}
+.bar{flex:1;height:10px;background:var(--line);border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--sel);width:0}
+</style>
+</head>
+<body>
+<main>
+  <h1>Filterability of dextran across the glomerular barrier</h1>
+  <p class="sub">Move the sliders to set molecular radius and charge. The green point and curve show the predicted relative filterability.</p>
+  <div class="card">
+    <svg id="s" viewBox="0 0 640 450" role="img" aria-label="Relative filterability versus effective molecular radius for polycationic, neutral and polyanionic dextran"></svg>
+    <div class="ctl">
+      <div><label for="r"><span>Effective molecular radius</span><span id="rv"></span></label><input id="r" type="range" min="18" max="42" step="0.1" value="30"></div>
+      <div><label for="c"><span>Charge</span><span id="cv"></span></label><input id="c" type="range" min="-1" max="1" step="0.01" value="0">
+        <div class="ends"><span>Polyanionic</span><span>Neutral</span><span>Polycationic</span></div></div>
+    </div>
+    <div class="row"><button data-c="-1">Polyanionic</button><button data-c="0">Neutral</button><button data-c="1">Polycationic</button></div>
+    <div class="out"><div><small style="color:var(--mute)">Relative filterability</small><br><b id="fv"></b></div><div class="bar"><i id="fb"></i></div></div>
+  </div>
+</main>
+<script>
+const D={
+ cat:[[19,1.0],[22,.95],[26,.86],[30,.72],[34,.51],[38,.33],[42,.11]],
+ neu:[[18.5,.93],[20,.88],[22,.75],[24,.58],[26,.45],[28,.35],[30,.27],[34,.14],[38,.05],[42,0]],
+ ani:[[18,.59],[19,.42],[20,.32],[22,.2],[24,.13],[26,.09],[30,.04],[34,0]]
+};
+// monotone cubic interpolation (Fritsch-Carlson)
+function mk(p){const n=p.length,x=p.map(a=>a[0]),y=p.map(a=>a[1]),d=[],m=[];
+ for(let i=0;i<n-1;i++)d[i]=(y[i+1]-y[i])/(x[i+1]-x[i]);
+ m[0]=d[0];m[n-1]=d[n-2];
+ for(let i=1;i<n-1;i++)m[i]=d[i-1]*d[i]<=0?0:(d[i-1]+d[i])/2;
+ for(let i=0;i<n-1;i++){if(d[i]===0){m[i]=m[i+1]=0;continue}
+  const a=m[i]/d[i],b=m[i+1]/d[i],s=a*a+b*b;if(s>9){const t=3/Math.sqrt(s);m[i]=t*a*d[i];m[i+1]=t*b*d[i]}}
+ return v=>{if(v<=x[0])return y[0];if(v>=x[n-1])return y[n-1];
+  let i=0;while(v>x[i+1])i++;const h=x[i+1]-x[i],t=(v-x[i])/h,t2=t*t,t3=t2*t;
+  return (2*t3-3*t2+1)*y[i]+(t3-2*t2+t)*h*m[i]+(-2*t3+3*t2)*y[i+1]+(t3-t2)*h*m[i+1]}}
+const F={cat:mk(D.cat),neu:mk(D.neu),ani:mk(D.ani)};
+const X0=18,X1=42,L=64,T=16,W=640,H=450,PW=W-L-20,PH=H-T-62;
+const sx=x=>L+(x-X0)/(X1-X0)*PW, sy=y=>T+(1-y)*PH;
+function f(x,c){const n=F.neu(x);return c<0?n+(F.ani(x)-n)*(-c):n+(F.cat(x)-n)*c}
+function path(fn,a,b){let s='';for(let x=a;x<=b+1e-9;x+=.25)s+=(s?'L':'M')+sx(x).toFixed(1)+','+sy(Math.max(0,fn(x))).toFixed(1);return s}
+const svg=document.getElementById('s'),R=document.getElementById('r'),C=document.getElementById('c');
+function build(){
+ let g='';
+ for(let i=0;i<=5;i++){const v=i/5;g+=`<line x1="${L}" x2="${L+PW}" y1="${sy(v)}" y2="${sy(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-8}" y="${sy(v)+4}" font-size="13" text-anchor="end">${v.toFixed(1)}</text>`}
+ for(let x=18;x<=42;x+=4)g+=`<line x1="${sx(x)}" x2="${sx(x)}" y1="${T}" y2="${T+PH}" stroke="var(--line)" stroke-width="1"/><text x="${sx(x)}" y="${T+PH+20}" font-size="13" text-anchor="middle">${x}</text>`;
+ g+=`<rect x="${L}" y="${T}" width="${PW}" height="${PH}" fill="none" stroke="var(--mute)"/>`;
+ g+=`<text x="${L+PW/2}" y="${H-10}" font-size="14" font-weight="700" text-anchor="middle">Effective molecular radius (Å)</text>`;
+ g+=`<text transform="translate(16 ${T+PH/2}) rotate(-90)" font-size="14" font-weight="700" text-anchor="middle">Relative filterability</text>`;
+ g+=`<path d="${path(F.cat,19,42)}" fill="none" stroke="var(--cat)" stroke-width="3"/>`;
+ g+=`<path d="${path(F.neu,18.5,42)}" fill="none" stroke="var(--neu)" stroke-width="3"/>`;
+ g+=`<path d="${path(F.ani,18,34)}" fill="none" stroke="var(--ani)" stroke-width="3"/>`;
+ g+=`<text x="${sx(33)}" y="${sy(.78)}" font-size="13" fill="var(--cat)" style="fill:var(--cat)">Polycationic</text>`;
+ g+=`<text x="${sx(28.2)}" y="${sy(.5)}" font-size="13" style="fill:var(--neu)">Neutral</text>`;
+ g+=`<text x="${sx(21.5)}" y="${sy(.07)-4}" font-size="13">Polyanionic</text>`;
+ g+=`<path id="sel" fill="none" stroke="var(--sel)" stroke-width="4" stroke-dasharray="7 5"/>`;
+ g+=`<line id="vl" y1="${T}" y2="${T+PH}" stroke="var(--sel)" stroke-width="1" stroke-dasharray="3 3"/>`;
+ g+=`<circle id="dot" r="7" fill="var(--sel)" stroke="var(--card)" stroke-width="2"/>`;
+ svg.innerHTML=g;
+}
+function upd(){
+ const r=+R.value,c=+C.value,v=Math.max(0,f(r,c));
+ document.getElementById('rv').textContent=r.toFixed(1)+' Å';
+ document.getElementById('cv').textContent=c<-.02?'anionic ('+Math.round(-c*100)+'%)':c>.02?'cationic ('+Math.round(c*100)+'%)':'neutral';
+ document.getElementById('fv').textContent=v.toFixed(2);
+ document.getElementById('fb').style.width=(v*100)+'%';
+ document.getElementById('sel').setAttribute('d',path(x=>f(x,c),18,42));
+ const vl=document.getElementById('vl');vl.setAttribute('x1',sx(r));vl.setAttribute('x2',sx(r));
+ const d=document.getElementById('dot');d.setAttribute('cx',sx(r));d.setAttribute('cy',sy(v));
+}
+R.oninput=C.oninput=upd;
+document.querySelectorAll('button[data-c]').forEach(b=>b.onclick=()=>{C.value=b.dataset.c;upd()});
+build();upd();
+</script>
+</body>
+</html>
